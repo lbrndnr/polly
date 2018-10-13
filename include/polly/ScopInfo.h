@@ -2379,6 +2379,8 @@ private:
   isl::union_map
   getAccessesOfType(std::function<bool(MemoryAccess &)> Predicate);
 
+  isl::union_map getTaggedAccesses(enum MemoryAccess::AccessType AccessTy);
+
   /// @name Helper functions for printing the Scop.
   ///
   //@{
@@ -2965,14 +2967,23 @@ public:
   /// Get a union map of all may-writes performed in the SCoP.
   isl::union_map getMayWrites();
 
+  /// Get a union map of all tagged may-writes performed in the SCoP.
+  isl::union_map getTaggedMayWrites();
+
   /// Get a union map of all must-writes performed in the SCoP.
   isl::union_map getMustWrites();
+
+  /// Get a union map of all tagged must-writes performed in the SCoP.
+  isl::union_map getTaggedMustWrites();
 
   /// Get a union map of all writes performed in the SCoP.
   isl::union_map getWrites();
 
   /// Get a union map of all reads performed in the SCoP.
   isl::union_map getReads();
+
+  /// Get a union map of all tagged reads performed in the SCoP.
+  isl::union_map getTaggedReads();
 
   /// Get a union map of all memory accesses performed in the SCoP.
   isl::union_map getAccesses();

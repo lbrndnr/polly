@@ -2614,67 +2614,6 @@ public:
     return Options;
   }
 
-  /// Get a tagged access relation containing all accesses of type @p AccessTy.
-  ///
-  /// Instead of a normal access of the form:
-  ///
-  ///   Stmt[i,j,k] -> Array[f_0(i,j,k), f_1(i,j,k)]
-  ///
-  /// a tagged access has the form
-  ///
-  ///   [Stmt[i,j,k] -> id[]] -> Array[f_0(i,j,k), f_1(i,j,k)]
-  ///
-  /// where 'id' is an additional space that references the memory access that
-  /// triggered the access.
-  ///
-  /// @param AccessTy The type of the memory accesses to collect.
-  ///
-  /// @return The relation describing all tagged memory accesses.
-  isl_union_map *getTaggedAccesses(enum MemoryAccess::AccessType AccessTy) {
-    isl_union_map *Accesses = isl_union_map_empty(S->getParamSpace().release());
-
-    for (auto &Stmt : *S)
-      for (auto &Acc : Stmt)
-        if (Acc->getType() == AccessTy) {
-          isl_map *Relation = Acc->getAccessRelation().release();
-          Relation =
-              isl_map_intersect_domain(Relation, Stmt.getDomain().release());
-
-          isl_space *Space = isl_map_get_space(Relation);
-          Space = isl_space_range(Space);
-          Space = isl_space_from_range(Space);
-          Space =
-              isl_space_set_tuple_id(Space, isl_dim_in, Acc->getId().release());
-          isl_map *Universe = isl_map_universe(Space);
-          Relation = isl_map_domain_product(Relation, Universe);
-          Accesses = isl_union_map_add_map(Accesses, Relation);
-        }
-
-    return Accesses;
-  }
-
-  /// Get the set of all read accesses, tagged with the access id.
-  ///
-  /// @see getTaggedAccesses
-  isl_union_map *getTaggedReads() {
-    return getTaggedAccesses(MemoryAccess::READ);
-  }
-
-  /// Get the set of all may (and must) accesses, tagged with the access id.
-  ///
-  /// @see getTaggedAccesses
-  isl_union_map *getTaggedMayWrites() {
-    return isl_union_map_union(getTaggedAccesses(MemoryAccess::MAY_WRITE),
-                               getTaggedAccesses(MemoryAccess::MUST_WRITE));
-  }
-
-  /// Get the set of all must accesses, tagged with the access id.
-  ///
-  /// @see getTaggedAccesses
-  isl_union_map *getTaggedMustWrites() {
-    return getTaggedAccesses(MemoryAccess::MUST_WRITE);
-  }
-
   /// Collect parameter and array names as isl_ids.
   ///
   /// To reason about the different parameters and arrays used, ppcg requires
@@ -2730,12 +2669,12 @@ public:
     PPCGScop->domain = S->getDomains().release();
     // TODO: investigate this further. PPCG calls collect_call_domains.
     PPCGScop->call = isl_union_set_from_set(S->getContext().release());
-    PPCGScop->tagged_reads = getTaggedReads();
+    PPCGScop->tagged_reads = S->getTaggedReads().release();
     PPCGScop->reads = S->getReads().release();
     PPCGScop->live_in = nullptr;
-    PPCGScop->tagged_may_writes = getTaggedMayWrites();
+    PPCGScop->tagged_may_writes = S->getTaggedMayWrites().release();
     PPCGScop->may_writes = S->getWrites().release();
-    PPCGScop->tagged_must_writes = getTaggedMustWrites();
+    PPCGScop->tagged_must_writes = S->getTaggedMustWrites().release();
     PPCGScop->must_writes = S->getMustWrites().release();
     PPCGScop->live_out = nullptr;
     PPCGScop->tagged_must_kills = KillsInfo.TaggedMustKills.release();
