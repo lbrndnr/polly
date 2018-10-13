@@ -371,6 +371,62 @@ bool ScopArrayInfo::isCompatibleWith(const ScopArrayInfo *Array) const {
   return true;
 }
 
+isl::set ScopArrayInfo::getExtent() const {
+  unsigned NumDims = getNumberOfDimensions();
+
+  if (NumDims == 0)
+    return isl::set::universe(getSpace());
+
+  isl::union_map Accesses = S.getAccesses();
+  isl::union_set AccessUSet = Accesses.range();
+  AccessUSet = AccessUSet.coalesce();
+  AccessUSet = AccessUSet.detect_equalities();
+  AccessUSet = AccessUSet.coalesce();
+
+  if (AccessUSet.is_empty())
+    return isl::set::empty(getSpace());
+
+  isl::set AccessSet = AccessUSet.extract_set(getSpace());
+
+  isl::local_space LS = isl::local_space(getSpace());
+
+  isl::pw_aff Val = isl::aff::var_on_domain(LS, isl::dim::set, 0);
+  isl::pw_aff OuterMin = AccessSet.dim_min(0);
+  isl::pw_aff OuterMax = AccessSet.dim_max(0);
+  OuterMin = OuterMin.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+  OuterMax = OuterMax.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+  OuterMin = OuterMin.set_tuple_id(isl::dim::in, getBasePtrId());
+  OuterMax = OuterMax.set_tuple_id(isl::dim::in, getBasePtrId());
+
+  isl::set Extent = isl::set::universe(getSpace());
+
+  Extent = Extent.intersect(OuterMin.le_set(Val));
+  Extent = Extent.intersect(OuterMax.ge_set(Val));
+
+  for (unsigned i = 1; i < NumDims; ++i)
+    Extent = Extent.lower_bound_si(isl::dim::set, i, 0);
+
+  for (unsigned i = 0; i < NumDims; ++i) {
+    isl::pw_aff PwAff = getDimensionSizePw(i);
+
+    // isl_pw_aff can be NULL for zero dimension. Only in the case of a
+    // Fortran array will we have a legitimate dimension.
+    if (PwAff.is_null()) {
+      assert(i == 0 && "invalid dimension isl_pw_aff for nonzero dimension");
+      continue;
+    }
+
+    isl::pw_aff Val =
+        isl::aff::var_on_domain(isl::local_space(getSpace()), isl::dim::set, i);
+    PwAff = PwAff.add_dims(isl::dim::in, Val.dim(isl::dim::in));
+    PwAff = PwAff.set_tuple_id(isl::dim::in, Val.get_tuple_id(isl::dim::in));
+    isl::set Set = PwAff.gt_set(Val);
+    Extent = Set.intersect(Extent);
+  }
+
+  return Extent;
+}
+
 void ScopArrayInfo::updateElementType(Type *NewElementType) {
   if (NewElementType == ElementType)
     return;

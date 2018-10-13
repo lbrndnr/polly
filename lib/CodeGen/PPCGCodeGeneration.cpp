@@ -2767,73 +2767,6 @@ public:
     return Stmts;
   }
 
-  /// Derive the extent of an array.
-  ///
-  /// The extent of an array is the set of elements that are within the
-  /// accessed array. For the inner dimensions, the extent constraints are
-  /// 0 and the size of the corresponding array dimension. For the first
-  /// (outermost) dimension, the extent constraints are the minimal and maximal
-  /// subscript value for the first dimension.
-  ///
-  /// @param Array The array to derive the extent for.
-  ///
-  /// @returns An isl_set describing the extent of the array.
-  isl::set getExtent(ScopArrayInfo *Array) {
-    unsigned NumDims = Array->getNumberOfDimensions();
-
-    if (Array->getNumberOfDimensions() == 0)
-      return isl::set::universe(Array->getSpace());
-
-    isl::union_map Accesses = S->getAccesses(Array);
-    isl::union_set AccessUSet = Accesses.range();
-    AccessUSet = AccessUSet.coalesce();
-    AccessUSet = AccessUSet.detect_equalities();
-    AccessUSet = AccessUSet.coalesce();
-
-    if (AccessUSet.is_empty())
-      return isl::set::empty(Array->getSpace());
-
-    isl::set AccessSet = AccessUSet.extract_set(Array->getSpace());
-
-    isl::local_space LS = isl::local_space(Array->getSpace());
-
-    isl::pw_aff Val = isl::aff::var_on_domain(LS, isl::dim::set, 0);
-    isl::pw_aff OuterMin = AccessSet.dim_min(0);
-    isl::pw_aff OuterMax = AccessSet.dim_max(0);
-    OuterMin = OuterMin.add_dims(isl::dim::in, Val.dim(isl::dim::in));
-    OuterMax = OuterMax.add_dims(isl::dim::in, Val.dim(isl::dim::in));
-    OuterMin = OuterMin.set_tuple_id(isl::dim::in, Array->getBasePtrId());
-    OuterMax = OuterMax.set_tuple_id(isl::dim::in, Array->getBasePtrId());
-
-    isl::set Extent = isl::set::universe(Array->getSpace());
-
-    Extent = Extent.intersect(OuterMin.le_set(Val));
-    Extent = Extent.intersect(OuterMax.ge_set(Val));
-
-    for (unsigned i = 1; i < NumDims; ++i)
-      Extent = Extent.lower_bound_si(isl::dim::set, i, 0);
-
-    for (unsigned i = 0; i < NumDims; ++i) {
-      isl::pw_aff PwAff = Array->getDimensionSizePw(i);
-
-      // isl_pw_aff can be NULL for zero dimension. Only in the case of a
-      // Fortran array will we have a legitimate dimension.
-      if (PwAff.is_null()) {
-        assert(i == 0 && "invalid dimension isl_pw_aff for nonzero dimension");
-        continue;
-      }
-
-      isl::pw_aff Val = isl::aff::var_on_domain(
-          isl::local_space(Array->getSpace()), isl::dim::set, i);
-      PwAff = PwAff.add_dims(isl::dim::in, Val.dim(isl::dim::in));
-      PwAff = PwAff.set_tuple_id(isl::dim::in, Val.get_tuple_id(isl::dim::in));
-      isl::set Set = PwAff.gt_set(Val);
-      Extent = Set.intersect(Extent);
-    }
-
-    return Extent;
-  }
-
   /// Derive the bounds of an array.
   ///
   /// For the first dimension we derive the bound of the array from the extent
@@ -2955,7 +2888,7 @@ public:
       PPCGArray.name = strdup(Array->getName().c_str());
       PPCGArray.extent = nullptr;
       PPCGArray.n_index = Array->getNumberOfDimensions();
-      PPCGArray.extent = getExtent(Array).release();
+      PPCGArray.extent = Array.getExtent().release();
       PPCGArray.n_ref = 0;
       PPCGArray.refs = nullptr;
       PPCGArray.accessed = true;

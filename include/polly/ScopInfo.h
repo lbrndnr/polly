@@ -423,6 +423,19 @@ public:
   /// @returns True, if the arrays are compatible, False otherwise.
   bool isCompatibleWith(const ScopArrayInfo *Array) const;
 
+  /// Derive the extent of an array.
+  ///
+  /// The extent of an array is the set of elements that are within the
+  /// accessed array. For the inner dimensions, the extent constraints are
+  /// 0 and the size of the corresponding array dimension. For the first
+  /// (outermost) dimension, the extent constraints are the minimal and maximal
+  /// subscript value for the first dimension.
+  ///
+  /// @param Array The array to derive the extent for.
+  ///
+  /// @returns An isl_set describing the extent of the array.
+  isl::set getExtent() const;
+
 private:
   void addDerivedSAI(ScopArrayInfo *DerivedSAI) {
     DerivedSAIs.insert(DerivedSAI);
