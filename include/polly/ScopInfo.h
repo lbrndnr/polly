@@ -2389,10 +2389,8 @@ private:
   ///                  of a given type.
   ///
   /// @returns The set of memory accesses in the scop that match the predicate.
-  isl::union_map
-  getAccessesOfType(std::function<bool(MemoryAccess &)> Predicate);
-
-  isl::union_map getTaggedAccesses(enum MemoryAccess::AccessType AccessTy);
+  isl::union_map getAccesses(bool Tagged,
+                             std::function<bool(MemoryAccess &)> Predicate);
 
   /// @name Helper functions for printing the Scop.
   ///
@@ -2977,6 +2975,12 @@ public:
   /// Get a union set containing the iteration domains of all statements.
   isl::union_set getDomains() const;
 
+  /// Get a union map of all memory accesses performed in the SCoP.
+  isl::union_map getAccesses();
+
+  /// Get a union map of all memory accesses performed in the SCoP.
+  isl::union_map getAccesses(ScopArrayInfo *Array);
+
   /// Get a union map of all may-writes performed in the SCoP.
   isl::union_map getMayWrites();
 
@@ -2997,14 +3001,6 @@ public:
 
   /// Get a union map of all tagged reads performed in the SCoP.
   isl::union_map getTaggedReads();
-
-  /// Get a union map of all memory accesses performed in the SCoP.
-  isl::union_map getAccesses();
-
-  /// Get a union map of all memory accesses performed in the SCoP.
-  ///
-  /// @param Array The array to which the accesses should belong.
-  isl::union_map getAccesses(ScopArrayInfo *Array);
 
   /// Get the schedule of all the statements in the SCoP.
   ///

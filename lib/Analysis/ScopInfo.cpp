@@ -4473,7 +4473,7 @@ isl::pw_aff Scop::getPwAffOnly(const SCEV *E, BasicBlock *BB) {
 }
 
 isl::union_map
-Scop::getAccessesOfType(std::function<bool(MemoryAccess &)> Predicate) {
+Scop::getAccesses(bool Tagged, std::function<bool(MemoryAccess &)> Predicate) {
   isl::union_map Accesses = isl::union_map::empty(getParamSpace());
 
   for (ScopStmt &Stmt : *this) {
@@ -4484,6 +4484,15 @@ Scop::getAccessesOfType(std::function<bool(MemoryAccess &)> Predicate) {
       isl::set Domain = Stmt.getDomain();
       isl::map AccessDomain = MA->getAccessRelation();
       AccessDomain = AccessDomain.intersect_domain(Domain);
+
+      if (Tagged) {
+        isl::space Space = AccessDomain.get_space();
+        Space = Space.range().from_range();
+        Space = Space.set_tuple_id(isl::dim::in, MA->getId());
+        isl::map Universe = isl::map::universe(Space);
+        AccessDomain = AccessDomain.domain_product(Universe);
+      }
+
       Accesses = Accesses.add_map(AccessDomain);
     }
   }
@@ -4491,62 +4500,44 @@ Scop::getAccessesOfType(std::function<bool(MemoryAccess &)> Predicate) {
   return Accesses.coalesce();
 }
 
-isl::union_map Scop::getTaggedAccesses(enum MemoryAccess::AccessType AccessTy) {
-  isl::union_map Accesses = isl::union_map::empty(getParamSpace());
-
-  for (auto &Stmt : *this)
-    for (auto &Acc : Stmt)
-      if (Acc->getType() == AccessTy) {
-        isl::map Relation = Acc->getAccessRelation();
-        Relation = Relation.intersect_domain(Stmt.getDomain());
-
-        isl::space Space = Relation.get_space();
-        Space = Space.range().from_range();
-        Space = Space.set_tuple_id(isl::dim::in, Acc->getId());
-        isl::map Universe = isl::map::universe(Space);
-        Relation = Relation.domain_product(Universe);
-        Accesses = Accesses.add_map(Relation);
-      }
-
-  return Accesses;
-}
-
-isl::union_map Scop::getMustWrites() {
-  return getAccessesOfType([](MemoryAccess &MA) { return MA.isMustWrite(); });
-}
-
-isl::union_map Scop::getTaggedMustWrites() {
-  return getTaggedAccesses(MemoryAccess::MUST_WRITE);
-}
-
-isl::union_map Scop::getMayWrites() {
-  return getAccessesOfType([](MemoryAccess &MA) { return MA.isMayWrite(); });
-}
-
-isl::union_map Scop::getTaggedMayWrites() {
-  return getTaggedAccesses(MemoryAccess::MAY_WRITE)
-      .unite(getTaggedAccesses(MemoryAccess::MUST_WRITE));
-}
-
-isl::union_map Scop::getWrites() {
-  return getAccessesOfType([](MemoryAccess &MA) { return MA.isWrite(); });
-}
-
-isl::union_map Scop::getReads() {
-  return getAccessesOfType([](MemoryAccess &MA) { return MA.isRead(); });
-}
-
-isl::union_map Scop::getTaggedReads() {
-  return getTaggedAccesses(MemoryAccess::READ);
-}
-
 isl::union_map Scop::getAccesses() {
-  return getAccessesOfType([](MemoryAccess &MA) { return true; });
+  return getAccesses(false, [](MemoryAccess &MA) { return true; });
 }
 
 isl::union_map Scop::getAccesses(ScopArrayInfo *Array) {
-  return getAccessesOfType(
-      [Array](MemoryAccess &MA) { return MA.getScopArrayInfo() == Array; });
+  return getAccesses(false, [Array](MemoryAccess &MA) {
+    return MA.getScopArrayInfo() == Array;
+  });
+}
+
+isl::union_map Scop::getMustWrites() {
+  return getAccesses(false, [](MemoryAccess &MA) { return MA.isMustWrite(); });
+}
+
+isl::union_map Scop::getTaggedMustWrites() {
+  return getAccesses(true, [](MemoryAccess &MA) { return MA.isMustWrite(); });
+}
+
+isl::union_map Scop::getMayWrites() {
+  return getAccesses(false, [](MemoryAccess &MA) { return MA.isMayWrite(); });
+}
+
+isl::union_map Scop::getTaggedMayWrites() {
+  return getAccesses(true, [](MemoryAccess &MA) {
+    return (MA.isMayWrite() || MA.isMustWrite());
+  });
+}
+
+isl::union_map Scop::getWrites() {
+  return getAccesses(false, [](MemoryAccess &MA) { return MA.isWrite(); });
+}
+
+isl::union_map Scop::getReads() {
+  return getAccesses(false, [](MemoryAccess &MA) { return MA.isRead(); });
+}
+
+isl::union_map Scop::getTaggedReads() {
+  return getAccesses(true, [](MemoryAccess &MA) { return MA.isRead(); });
 }
 
 // Check whether @p Node is an extension node.
