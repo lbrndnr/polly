@@ -4455,7 +4455,6 @@ isl::union_map Scop::getTaggedAccesses(enum MemoryAccess::AccessType AccessTy) {
   return Accesses;
 }
 
-
 isl::union_map Scop::getMustWrites() {
   return getAccessesOfType([](MemoryAccess &MA) { return MA.isMustWrite(); });
 }
@@ -4469,7 +4468,8 @@ isl::union_map Scop::getMayWrites() {
 }
 
 isl::union_map Scop::getTaggedMayWrites() {
-  return getTaggedAccesses(MemoryAccess::MAY_WRITE).unite(getTaggedAccesses(MemoryAccess::MUST_WRITE));
+  return getTaggedAccesses(MemoryAccess::MAY_WRITE)
+      .unite(getTaggedAccesses(MemoryAccess::MUST_WRITE));
 }
 
 isl::union_map Scop::getWrites() {
